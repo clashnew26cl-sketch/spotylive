@@ -13,7 +13,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&l
 const fa = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 const fmt = s => { if (!isFinite(s) || s < 0) s = 0; const m = Math.floor(s / 60), x = Math.floor(s % 60); return `${m}:${String(x).padStart(2, '0')}`; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return 180 + (h % 135); }; // فقط طیف فیروزه‌ای→بنفش→صورتی لوگو
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 const debounce = (f, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f(...a), ms); }; };
@@ -66,7 +66,11 @@ const I = {
   userplus: sv('<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/>'),
   usercheck: sv('<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 11l2 2 4-4"/>'),
 };
-const LOGO = `<img src="logo.svg" alt="Spotylive">`;
+const curLogo = () => 'logo.svg';
+function applyLogo() {
+  document.querySelectorAll('img[data-logo]').forEach(i => { if (!i.src.endsWith('logo.svg')) i.src = 'logo.svg'; });
+}
+const LOGO_HTML = () => `<div class="logo3d"><img data-logo src="logo.svg" alt="Spotylive"></div>`;
 
 /* ---------------- state ---------------- */
 let auth = null, db = null, rdb = null, me = null, rt = null, inboxCh = null, chatUnsub = null;
@@ -234,7 +238,7 @@ async function boot() {
 function hideSplash() { const s = $('#splash'); s.classList.add('out'); setTimeout(() => s.remove(), 800); }
 function showSetupNeeded() {
   const a = $('#auth'); a.hidden = false;
-  a.innerHTML = `<div class="setup glass liquid"><div class="auth-logo">${LOGO}</div><h1 class="brand" style="font-size:30px">Spotylive</h1>
+  a.innerHTML = `<div class="setup glass liquid"><div class="auth-logo">${LOGO_HTML()}</div><h1 class="brand" style="font-size:30px">Spotylive</h1>
   <p style="color:var(--muted);margin-top:10px">${window.firebase ? 'اپ هنوز به Firebase وصل نشده.' : 'کتابخانه Firebase بارگذاری نشد؛ اینترنت را بررسی کن.'}<br>
   فایل <code>config.js</code> را باز کن و تنظیمات <code>firebase</code> و <code>Cloudinary</code> را وارد کن.</p></div>`;
 }
@@ -286,7 +290,7 @@ function showAuth(mode, data) {
   if (data) Object.assign(A, data);
   $('#app').hidden = true;
   const a = $('#auth'); a.hidden = false;
-  a.innerHTML = `<div class="auth-card glass liquid"><div class="auth-logo">${LOGO}</div><h1 class="brand">Spotylive</h1>${AUTH[mode]()}</div>`;
+  a.innerHTML = `<div class="auth-card glass liquid"><div class="auth-logo">${LOGO_HTML()}</div><h1 class="brand">Spotylive</h1>${AUTH[mode]()}</div>`;
   const f = $('#fAuth');
   f.addEventListener('submit', e => { e.preventDefault(); onAuthSubmit(f); });
   if (mode === 'verify') startResendTimer($('.resend', a));
@@ -827,6 +831,7 @@ function stopRealtime() {
   rt = null;
 }
 document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('paused-anim', document.visibilityState !== 'visible');
   if (document.visibilityState === 'visible' && rt && me) { if (S.chatWith) markRead(S.chatWith, true); }
 });
 function rtSend(event, payload) {
@@ -959,7 +964,7 @@ function setMediaSession(t) {
 
 /* ---------- رنگ پویا از کاور ---------- */
 function extractColor(t) {
-  const set = rgb => { document.documentElement.style.setProperty('--dyn', rgb); };
+  const set = rgb => { dynColor = rgb; document.documentElement.style.setProperty('--dyn', rgb); };
   if (!t.cover_url) { const h = hue(t.title); set(hslToRgb(h / 360, .75, .55).join(',')); return; }
   const img = new Image(); img.crossOrigin = 'anonymous';
   img.onload = () => {
@@ -1026,14 +1031,15 @@ function updateNP() {
 function openNP() {
   if (!P.cur) return;
   const np = $('#np'); if (np.classList.contains('open')) return;
-  updateNP(); np.classList.add('open'); np.setAttribute('aria-hidden', 'false');
-  pushLayer(() => { np.classList.remove('open'); np.setAttribute('aria-hidden', 'true'); });
+  updateNP(); np.classList.add('open'); np.setAttribute('aria-hidden', 'false'); document.body.classList.add('np-open');
+  pushLayer(() => { np.classList.remove('open'); np.setAttribute('aria-hidden', 'true'); document.body.classList.remove('np-open'); });
   startViz();
 }
 function closeNP() { if ($('#np').classList.contains('open')) popLayer(); }
 
 /* ---------- Visualizer ---------- */
-let actx = null, analyser = null, freq = null, vizOn = false;
+let actx = null, analyser = null, freq = null, vizOn = false, dynColor = '120,92,255';
+const vals = new Float32Array(72);
 function ensureAudioGraph() {
   if (actx || isIOS || !audio.crossOrigin) return;
   try {
@@ -1054,25 +1060,28 @@ function drawViz(ts) {
   const x = c.getContext('2d'), W = c.width, H = c.height, cx = W / 2, cy = H / 2;
   x.clearRect(0, 0, W, H);
   const N = 72, playing = !audio.paused;
-  let vals = new Array(N).fill(0);
-  if (analyser && playing) { analyser.getByteFrequencyData(freq); for (let i = 0; i < N; i++) { const k = Math.floor((i < N / 2 ? i : N - i) / (N / 2) * 70); vals[i] = freq[k] / 255; } }
+  if (analyser && playing) { analyser.getByteFrequencyData(freq); for (let i = 0; i < N; i++) { const k = Math.floor((i < N / 2 ? i : N - i) / (N / 2) * 70); vals[i] += (freq[k] / 255 - vals[i]) * .5; } }
   else if (playing) { for (let i = 0; i < N; i++) vals[i] = (Math.sin(ts / 260 + i * .55) * .5 + .5) * (Math.sin(ts / 610 + i * .21) * .35 + .45); }
-  const bass = vals.slice(0, 6).reduce((a, b) => a + b, 0) / 6;
-  const cov = $('#npCover'); if (cov && playing) cov.style.transform = `scale(${1 + bass * .035})`; else if (cov) cov.style.transform = '';
-  const dyn = getComputedStyle(document.documentElement).getPropertyValue('--dyn').trim() || '168,85,247';
-  const R = Math.min(W, H) * .36;
+  else { for (let i = 0; i < N; i++) vals[i] *= .9; }
+  const bass = (vals[0] + vals[1] + vals[2] + vals[3] + vals[4] + vals[5]) / 6;
+  const cov = $('#npCover'); if (cov) cov.style.transform = playing ? `scale(${(1 + bass * .035).toFixed(4)})` : '';
+  const dyn = dynColor, R = Math.min(W, H) * .36;
   const g = x.createRadialGradient(cx, cy, R * .6, cx, cy, R * 1.5);
-  g.addColorStop(0, `rgba(${dyn},${.25 + bass * .35})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-  x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R * 1.5, 0, Math.PI * 2); x.fill();
-  x.lineCap = 'round';
+  g.addColorStop(0, `rgba(${dyn},${.22 + bass * .35})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R * 1.5, 0, 6.2832); x.fill();
+  // one path for all bars (much cheaper than per-bar shadows)
+  x.beginPath();
   for (let i = 0; i < N; i++) {
-    const a = i / N * Math.PI * 2 - Math.PI / 2, len = 8 + vals[i] * R * .55;
-    const x1 = cx + Math.cos(a) * R, y1 = cy + Math.sin(a) * R, x2 = cx + Math.cos(a) * (R + len), y2 = cy + Math.sin(a) * (R + len);
-    x.strokeStyle = `rgba(${dyn},${.35 + vals[i] * .65})`; x.lineWidth = 5;
-    x.shadowColor = `rgba(${dyn},.9)`; x.shadowBlur = 14;
-    x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke();
+    const a = i / N * 6.2832 - 1.5708, len = 8 + vals[i] * R * .55, ca = Math.cos(a), sa = Math.sin(a);
+    x.moveTo(cx + ca * R, cy + sa * R); x.lineTo(cx + ca * (R + len), cy + sa * (R + len));
   }
-  x.shadowBlur = 0;
+  x.lineCap = 'round';
+  const sg = x.createLinearGradient(0, 0, W, H);
+  sg.addColorStop(0, '#4ff3ff'); sg.addColorStop(.5, `rgb(${dyn})`); sg.addColorStop(1, '#ff3df0');
+  x.strokeStyle = sg;
+  x.globalAlpha = .25; x.lineWidth = 13; x.stroke();       // glow pass
+  x.globalAlpha = .95; x.lineWidth = 5; x.stroke();        // core pass
+  x.globalAlpha = 1;
   requestAnimationFrame(drawViz);
 }
 
@@ -1602,7 +1611,7 @@ const ACT = {
   installApp: () => installApp(),
   logout: () => confirmBox('خروج از حساب؟', '', 'خروج', logout),
 };
-function closeNPSilent() { const np = $('#np'); if (np.classList.contains('open')) { np.classList.remove('open'); } }
+function closeNPSilent() { const np = $('#np'); if (np.classList.contains('open')) { np.classList.remove('open'); document.body.classList.remove('np-open'); } }
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const f = ACT[el.dataset.act]; if (!f) return;
@@ -1616,5 +1625,6 @@ document.addEventListener('keydown', e => {
   if (e.code === 'ArrowRight' && e.altKey) prev();
 });
 
+applyLogo();
 boot();
 })();

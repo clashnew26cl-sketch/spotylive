@@ -1,5 +1,5 @@
 // Spotylive service worker — نصب‌پذیری و باز شدن سریع
-const CACHE = 'spotylive-v2';
+const CACHE = 'spotylive-v4';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest',
   './logo.svg', './icon-192.png', './icon-512.png'];
 

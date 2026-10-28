@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0a0614">
+<meta name="theme-color" content="#04040a">
 <meta name="description" content="Spotylive — موسیقی‌ات را آپلود کن، با دوستانت چت کن و هم‌زمان گوش بده.">
 <title>Spotylive</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="icon" type="image/svg+xml" href="logo.svg" id="favicon">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -27,7 +28,7 @@
   <div id="splash">
     <div class="splash-logo">
       <span class="ring r1"></span><span class="ring r2"></span><span class="ring r3"></span>
-      <img src="logo.svg" alt="Spotylive">
+      <div class="logo3d big"><img data-logo src="logo.svg" alt="Spotylive"></div>
     </div>
     <h1 class="brand">Spotylive</h1>
     <p>با هم گوش بده، همین حالا</p>
@@ -39,7 +40,7 @@
   <!-- اپ اصلی -->
   <div id="app" hidden>
     <aside id="side" class="glass">
-      <div class="side-brand"><img src="logo.svg" alt=""><b class="brand">Spotylive</b></div>
+      <div class="side-brand"><div class="logo3d sm"><img data-logo src="logo.svg" alt=""></div><b class="brand">Spotylive</b></div>
       <nav class="side-nav" id="sideNav"></nav>
       <button class="btn primary w100" data-act="upload"></button>
     </aside>
